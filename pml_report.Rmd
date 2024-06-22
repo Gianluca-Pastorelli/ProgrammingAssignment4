@@ -1,0 +1,110 @@
+---
+title: "Prediction Assignment"
+author: "GL Pastorelli"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project Report: Predicting exercise manner from wearable sensor data
+  
+## 1. Introduction
+
+The aim of this project is to develop a predictive model that can accurately classify the manner in which individuals perform exercises using data collected from wearable sensors. This type of model could be used in fitness applications, physical therapy, or sports training to provide feedback and monitor performance.
+  
+## 2. Dataset
+
+The dataset "pml-training.csv" contains a variety of features derived from wearable sensor measurements, including:
+
+- Angular velocity (roll, pitch, yaw) for different body parts and equipment (belt, forearm, arm, dumbbell)
+- "classe" (the target variable), representing the exercise manner to be predicted
+
+``` {r, results = "hide", message = FALSE, warning = FALSE}
+library(tidyverse)
+library(caret)
+# Data Loading
+data <- read_csv("pml-training.csv")
+data$classe <- as.factor(data$classe)
+```
+  
+## 3. Data Preprocessing
+
+The following preprocessing steps were applied:
+
+- Missing Value Imputation: Missing values in numeric columns were replaced with the median value of the respective column. This is a simple and robust imputation method that helps maintain the overall distribution of the data.
+- Removal of Incomplete Cases: Any remaining rows with missing values (after imputation) were removed. This ensures that our model is trained on complete data.
+```{r, results = "hide", message = FALSE, warning = FALSE}
+# Data Preprocessing
+data <- data %>%
+  # Impute numeric columns
+  mutate_if(is.numeric, function(x) ifelse(is.na(x), median(x, na.rm = TRUE), x)) %>%
+  # Remove any remaining rows with missing values
+  na.omit()
+```
+  
+## 4. Feature Selection
+
+For this initial model, a subset of features related to angular velocity was selected:
+
+- roll_belt, pitch_belt, yaw_belt
+- roll_forearm, pitch_forearm, yaw_forearm
+- roll_arm, pitch_arm, yaw_arm
+- roll_dumbbell, pitch_dumbbell, yaw_dumbbell
+  
+The rationale behind choosing these features is that angular velocity changes across different body parts could be indicative of specific exercise movements or postures.
+  
+## 5. Model Building
+
+- Algorithm: Random Forest (RF) was chosen as the modeling algorithm. RF is a powerful ensemble method known for its ability to handle complex relationships in data, avoid overfitting, and provide good predictive performance.
+- Training: The dataset was split into training (80%) and testing (20%) sets using stratified sampling to maintain the class distribution.
+- Cross-Validation: A 10-fold cross-validation was implemented to evaluate model performance and estimate the out-of-sample error. This helps assess how well the model generalizes to unseen data and reduces the risk of overfitting.
+```{r, results = "hide", message = FALSE, warning = FALSE}
+# Data Partitioning with stratification
+set.seed(1234)
+trainIndex <- createDataPartition(data$classe, p = 0.8, list = FALSE, times = 1) # times = 1 for single partition
+train_data <- data[trainIndex, ]
+test_data <- data[-trainIndex, ]
+
+# Model Training with Random Forest
+control <- trainControl(method = "cv", number = 10, savePredictions = TRUE)
+model <- train(classe ~ roll_belt+pitch_belt+yaw_belt+roll_forearm+pitch_forearm+yaw_forearm+
+                 roll_arm+pitch_arm+yaw_arm+roll_dumbbell+pitch_dumbbell+yaw_dumbbell, data = train_data, method = "rf",
+               trControl = control)
+```
+  
+## 6. Model Evaluation
+
+The final Random Forest model was evaluated on the test set using a confusion matrix. The results will be reported here.
+```{r}
+# Predictions and Evaluation
+predictions <- predict(model, newdata = test_data)
+confusionMatrix(predictions, test_data$classe)
+```
+  
+## 7. Expected Out-of-Sample Error
+
+Based on the cross-validation results, the expected out-of-sample error is 0.27. This fairly low value provides a realistic estimate of how well the model will perform on new, unseen data.
+```{r}
+# Expected out-of-sample error
+cv_results <- model$resample
+average_accuracy <- mean(cv_results$Accuracy)
+average_error <- 1 - average_accuracy
+print(average_error)
+```
+  
+## 8. Predictions for Test Cases
+
+The trained model can now be used to predict the exercise manner for the 20 new test cases provided. These predictions can be generated using the predict() function.
+  
+## 9. Future Improvements
+
+- Feature Engineering: Explore additional features or create new ones based on domain knowledge (e.g., acceleration, magnitude of velocity, combinations of features).
+- Algorithm Tuning: Experiment with hyperparameter tuning for the Random Forest model (e.g., number of trees, maximum depth).
+- Other Algorithms: Consider comparing Random Forest with other classification algorithms (e.g., Support Vector Machines, Gradient Boosting) to see if there are any performance gains.
+  
+## Conclusion
+
+This report outlines the development of a Random Forest model to predict exercise manner using wearable sensor data. The model shows promising performance and provides a foundation for further refinement.
